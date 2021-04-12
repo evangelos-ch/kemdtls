@@ -1,6 +1,7 @@
 module github.com/pion/dtls/v2
 
 require (
+	github.com/open-quantum-safe/liboqs-go v0.0.0-20210402151055-341314ef20f1 // indirect
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.12.3
 	github.com/pion/udp v0.1.1
