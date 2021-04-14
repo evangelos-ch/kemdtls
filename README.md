@@ -1,9 +1,9 @@
 <h1 align="center">
   <br>
-  Pion DTLS
+  KEMDTLS
   <br>
 </h1>
-<h4 align="center">A Go implementation of DTLS</h4>
+<h4 align="center">A Go prototype for KEMDTLS, an application of KEMTLS onto DTLS</h4>
 <p align="center">
   <a href="https://pion.ly"><img src="https://img.shields.io/badge/pion-dtls-gray.svg?longCache=true&colorB=brightgreen" alt="Pion DTLS"></a>
   <a href="https://sourcegraph.com/github.com/pion/dtls"><img src="https://sourcegraph.com/github.com/pion/dtls/-/badge.svg" alt="Sourcegraph Widget"></a>
@@ -18,9 +18,26 @@
 </p>
 <br>
 
+# KEMDTLS
+
+KEMDTLS is an application of Post-Quantum KEMTLS onto DTLS.
+
+KEMTLS was proposed by [Peter Shwabe, Douglas Stebila and Thom Wiggers](https://eprint.iacr.org/2020/534.pdf) for TLS 1.3. This is an integration of Post-Quantum KEMs using liboqs-go into pion/dtls to implement KEMDTLS in DTLS 1.2.
+
+Main difference between KEMTLS and KEMDTLS is that KEMDTLS follows the DTLS 1.2 Key Schedule, whereas the original KEMTLS paper uses the TLS 1.3 Key Schedule, where part of the handshake itself is encrypted. As such KEMDTLS derives a Master Secret from a concatenation of the two exchanged shared secrets as the input to the DLTS 1.2 Key Schedule.
+
+The purpose of the project and the repository is to experiment with post-quantum cryptosystems in an Internet of Things-oriented context as part of my BSc dissertation on the application of PQC on the IoT. It is simply a proof of concept meant to demonstrate the applicability of such schemes onto the protocol that supports CoAP as well as allow for some benchmarking experiments. As such nothing further has been tested.
+
+## TODO
+
+[ ] Certificates that include Post-Quantum KEM keys.
+[ ] Extract Public Key from Certificate (pion/dtls surprisingly doesn't do this already when the Client receives the flight 4 messages!?)
+
+# DTLS
+
 Native [DTLS 1.2][rfc6347] implementation in the Go programming language.
 
-A long term goal is a professional security review, and maye inclusion in stdlib.
+A long term goal is a professional security review, and maybe inclusion in stdlib.
 
 [rfc6347]: https://tools.ietf.org/html/rfc6347
 
