@@ -21,7 +21,7 @@ type Random struct {
 }
 
 // MarshalFixed encodes the Handshake
-func (r *Random) MarshalFixed() [RandomLength]byte {
+func (r *Random) MarshalFixed() [32]byte {
 	var out [RandomLength]byte
 
 	binary.BigEndian.PutUint32(out[0:], uint32(r.GMTUnixTime.Unix()))

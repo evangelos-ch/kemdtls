@@ -27,6 +27,8 @@ func (i ID) String() string {
 		return "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA"
 	case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
 		return "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"
+	case TLS_MCELIECE_SPHINCS_WITH_AES_256_CBC_SHA:
+		return "TLS_MCELIECE_SPHINCS_WITH_AES_256_CBC_SHA"
 	case TLS_PSK_WITH_AES_128_CCM:
 		return "TLS_PSK_WITH_AES_128_CCM"
 	case TLS_PSK_WITH_AES_128_CCM_8:
@@ -53,6 +55,9 @@ const (
 	// AES-256-CBC-SHA
 	TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA ID = 0xc00a //nolint:golint,stylecheck
 	TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA   ID = 0xc014 //nolint:golint,stylecheck
+
+	// OQS
+	TLS_MCELIECE_SPHINCS_WITH_AES_256_CBC_SHA ID = 0xc020 //nolint:golint,stylecheck
 
 	TLS_PSK_WITH_AES_128_CCM        ID = 0xc0a4 //nolint:golint,stylecheck
 	TLS_PSK_WITH_AES_128_CCM_8      ID = 0xc0a8 //nolint:golint,stylecheck

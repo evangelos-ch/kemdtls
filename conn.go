@@ -12,6 +12,7 @@ import (
 
 	"github.com/pion/dtls/v2/internal/closer"
 	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
+	"github.com/pion/dtls/v2/pkg/crypto/kem"
 	"github.com/pion/dtls/v2/pkg/crypto/signaturehash"
 	"github.com/pion/dtls/v2/pkg/protocol"
 	"github.com/pion/dtls/v2/pkg/protocol/alert"
@@ -47,6 +48,7 @@ type Conn struct {
 	nextConn       connctx.ConnCtx  // Embedded Conn, typically a udpconn we read/write from
 	fragmentBuffer *fragmentBuffer  // out-of-order and missing fragment handling
 	handshakeCache *handshakeCache  // caching of handshake messages for verifyData generation
+	keyCache       *keyShareCache   // caching of KEM keypairs for key exchanges
 	decrypted      chan interface{} // Decrypted Application Data or error, pull by calling `Read`
 
 	state State // Internal state
@@ -92,6 +94,11 @@ func createConn(ctx context.Context, nextConn net.Conn, config *Config, isClient
 		return nil, err
 	}
 
+	kems := config.KEMs
+	if kems == nil {
+		kems = kem.DefaultKEMs()
+	}
+
 	signatureSchemes, err := signaturehash.ParseSignatureSchemes(config.SignatureSchemes, config.InsecureHashes)
 	if err != nil {
 		return nil, err
@@ -123,6 +130,7 @@ func createConn(ctx context.Context, nextConn net.Conn, config *Config, isClient
 		nextConn:                connctx.New(nextConn),
 		fragmentBuffer:          newFragmentBuffer(),
 		handshakeCache:          newHandshakeCache(),
+		keyCache:                newKeyShareCache(),
 		maximumTransmissionUnit: mtu,
 
 		decrypted: make(chan interface{}, 1),
@@ -164,6 +172,7 @@ func createConn(ctx context.Context, nextConn net.Conn, config *Config, isClient
 		localPSKIdentityHint:        config.PSKIdentityHint,
 		localCipherSuites:           cipherSuites,
 		localSignatureSchemes:       signatureSchemes,
+		localKEMs:                   kems,
 		extendedMasterSecret:        config.ExtendedMasterSecret,
 		localSRTPProtectionProfiles: config.SRTPProtectionProfiles,
 		serverName:                  serverName,
@@ -787,7 +796,7 @@ func (c *Conn) isHandshakeCompletedSuccessfully() bool {
 }
 
 func (c *Conn) handshake(ctx context.Context, cfg *handshakeConfig, initialFlight flightVal, initialState handshakeState) error { //nolint:gocognit
-	c.fsm = newHandshakeFSM(&c.state, c.handshakeCache, cfg, initialFlight)
+	c.fsm = newHandshakeFSM(&c.state, c.handshakeCache, c.keyCache, cfg, initialFlight)
 
 	done := make(chan struct{})
 	ctxRead, cancelRead := context.WithCancel(context.Background())

@@ -28,6 +28,7 @@ func Algorithms() []Algorithm {
 		{hash.SHA256, signature.ECDSA},
 		{hash.SHA384, signature.ECDSA},
 		{hash.SHA512, signature.ECDSA},
+		{hash.SHA256, signature.SPHINCS},
 		{hash.SHA256, signature.RSA},
 		{hash.SHA384, signature.RSA},
 		{hash.SHA512, signature.RSA},
@@ -55,7 +56,8 @@ func (a *Algorithm) isCompatible(privateKey crypto.PrivateKey) bool {
 	case *rsa.PrivateKey:
 		return a.Signature == signature.RSA
 	default:
-		return false
+		return a.Signature == signature.SPHINCS
+		// return false
 	}
 }
 

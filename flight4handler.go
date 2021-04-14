@@ -3,11 +3,14 @@ package dtls
 import (
 	"context"
 	"crypto/x509"
+	"fmt"
 
 	"github.com/pion/dtls/v2/pkg/crypto/clientcertificate"
 	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
+	"github.com/pion/dtls/v2/pkg/crypto/kem"
 	"github.com/pion/dtls/v2/pkg/crypto/prf"
-	"github.com/pion/dtls/v2/pkg/crypto/signaturehash"
+
+	// "github.com/pion/dtls/v2/pkg/crypto/signaturehash"
 	"github.com/pion/dtls/v2/pkg/protocol"
 	"github.com/pion/dtls/v2/pkg/protocol/alert"
 	"github.com/pion/dtls/v2/pkg/protocol/extension"
@@ -15,7 +18,7 @@ import (
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 )
 
-func flight4Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) { //nolint:gocognit
+func flight4Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, keyCache *keyShareCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) { //nolint:gocognit
 	seq, msgs, ok := cache.fullPullMap(state.handshakeRecvSequence,
 		handshakeCachePullRule{handshake.TypeCertificate, cfg.initialEpoch, true, true},
 		handshakeCachePullRule{handshake.TypeClientKeyExchange, cfg.initialEpoch, true, false},
@@ -32,6 +35,8 @@ func flight4Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 		return 0, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, nil
 	}
 
+	fmt.Println("Flight 5: Received ClientKeyExchange")
+
 	if h, hasCert := msgs[handshake.TypeCertificate].(*handshake.MessageCertificate); hasCert {
 		state.PeerCertificates = h.Certificate
 	}
@@ -46,7 +51,7 @@ func flight4Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 			handshakeCachePullRule{handshake.TypeServerHello, cfg.initialEpoch, false, false},
 			handshakeCachePullRule{handshake.TypeCertificate, cfg.initialEpoch, false, false},
 			handshakeCachePullRule{handshake.TypeServerKeyExchange, cfg.initialEpoch, false, false},
-			handshakeCachePullRule{handshake.TypeCertificateRequest, cfg.initialEpoch, false, false},
+			handshakeCachePullRule{handshake.TypeCertificateRequest, cfg.initialEpoch, false, true},
 			handshakeCachePullRule{handshake.TypeServerHelloDone, cfg.initialEpoch, false, false},
 			handshakeCachePullRule{handshake.TypeCertificate, cfg.initialEpoch, true, false},
 			handshakeCachePullRule{handshake.TypeClientKeyExchange, cfg.initialEpoch, true, false},
@@ -98,7 +103,13 @@ func flight4Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 			state.IdentityHint = clientKeyExchange.IdentityHint
 			preMasterSecret = prf.PSKPreMasterSecret(psk)
 		} else {
-			preMasterSecret, err = prf.PreMasterSecret(clientKeyExchange.PublicKey, state.localKeypair.PrivateKey, state.localKeypair.Curve)
+			state.remoteSharedSecret, err = kem.Decapsulate(state.selectedKem, state.kemKeypair, clientKeyExchange.PublicKey) // This "PublicKey" is the ciphertext
+			if err != nil {
+				return 0, &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, err
+			}
+
+			// preMasterSecret, err = prf.PreMasterSecret(clientKeyExchange.PublicKey, state.localKeypair.PrivateKey, state.localKeypair.Curve)
+			preMasterSecret, err = prf.PreMasterSecret(state.remoteSharedSecret, state.localSharedSecret, 0)
 			if err != nil {
 				return 0, &alert.Alert{Level: alert.Fatal, Description: alert.IllegalParameter}, err
 			}
@@ -173,7 +184,7 @@ func flight4Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 	return flight6, nil, nil
 }
 
-func flight4Generate(c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) {
+func flight4Generate(c flightConn, state *State, cache *handshakeCache, _ *keyShareCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) {
 	extensions := []extension.Extension{&extension.RenegotiationInfo{
 		RenegotiatedConnection: 0,
 	}}
@@ -218,6 +229,14 @@ func flight4Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 			},
 		},
 	})
+	fmt.Println("Flight 4: Sending ServerHello.")
+
+	serverCiphertext, sharedSecret, err := kem.Encapsulate(state.selectedKem, state.kemKeypair, state.remotePublicKey)
+	if err != nil {
+		return nil, &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, err
+	}
+	fmt.Printf("Server shared secret:\n% X ... % X", sharedSecret[0:8], sharedSecret[len(sharedSecret)-8:])
+	state.localSharedSecret = sharedSecret
 
 	switch {
 	case state.cipherSuite.AuthenticationType() == CipherSuiteAuthenticationTypeCertificate:
@@ -238,21 +257,23 @@ func flight4Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 				},
 			},
 		})
+		fmt.Println("Flight 4: Sending Certificate.")
 
-		serverRandom := state.localRandom.MarshalFixed()
-		clientRandom := state.remoteRandom.MarshalFixed()
+		// TODO REMOVE AS NO LONGER NECESSARY IN KEMDTLS
+		// serverRandom := state.localRandom.MarshalFixed()
+		// clientRandom := state.remoteRandom.MarshalFixed()
 
-		// Find compatible signature scheme
-		signatureHashAlgo, err := signaturehash.SelectSignatureScheme(cfg.localSignatureSchemes, certificate.PrivateKey)
-		if err != nil {
-			return nil, &alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}, err
-		}
+		// // Find compatible signature scheme
+		// signatureHashAlgo, err := signaturehash.SelectSignatureScheme(cfg.localSignatureSchemes, certificate.PrivateKey)
+		// if err != nil {
+		// 	return nil, &alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}, err
+		// }
 
-		signature, err := generateKeySignature(clientRandom[:], serverRandom[:], state.localKeypair.PublicKey, state.namedCurve, certificate.PrivateKey, signatureHashAlgo.Hash)
-		if err != nil {
-			return nil, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
-		}
-		state.localKeySignature = signature
+		// signature, err := generateKeySignature(clientRandom[:], serverRandom[:], state.localKeypair.PublicKey, state.namedCurve, certificate.PrivateKey, signatureHashAlgo.Hash)
+		// if err != nil {
+		// 	return nil, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
+		// }
+		// state.localKeySignature = signature
 
 		pkts = append(pkts, &packet{
 			record: &recordlayer.RecordLayer{
@@ -261,16 +282,20 @@ func flight4Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 				},
 				Content: &handshake.Handshake{
 					Message: &handshake.MessageServerKeyExchange{
-						EllipticCurveType:  elliptic.CurveTypeNamedCurve,
-						NamedCurve:         state.namedCurve,
-						PublicKey:          state.localKeypair.PublicKey,
-						HashAlgorithm:      signatureHashAlgo.Hash,
-						SignatureAlgorithm: signatureHashAlgo.Signature,
-						Signature:          state.localKeySignature,
+						// EllipticCurveType:  elliptic.CurveTypeNamedCurve,
+						// NamedCurve:         state.namedCurve,
+						SelectedKEM: state.selectedKem,
+						PublicKey:   state.kemKeypair.PublicKey,
+						Ciphertext:  serverCiphertext,
+						// PublicKey:          state.localKeypair.PublicKey,
+						// HashAlgorithm:      signatureHashAlgo.Hash,
+						// SignatureAlgorithm: signatureHashAlgo.Signature,
+						// Signature:          state.localKeySignature,
 					},
 				},
 			},
 		})
+		fmt.Println("Flight 4: Sending ServerKeyExchange.")
 
 		if cfg.clientAuth > NoClientCert {
 			pkts = append(pkts, &packet{
@@ -286,6 +311,7 @@ func flight4Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 					},
 				},
 			})
+			fmt.Println("Flight 4: Sending CertificateRequest.")
 		}
 	case cfg.localPSKIdentityHint != nil:
 		// To help the client in selecting which identity to use, the server
@@ -313,9 +339,12 @@ func flight4Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 				},
 				Content: &handshake.Handshake{
 					Message: &handshake.MessageServerKeyExchange{
-						EllipticCurveType: elliptic.CurveTypeNamedCurve,
-						NamedCurve:        state.namedCurve,
-						PublicKey:         state.localKeypair.PublicKey,
+						// EllipticCurveType: elliptic.CurveTypeNamedCurve,
+						// NamedCurve:        state.namedCurve,
+						// PublicKey:         state.localKeypair.PublicKey,
+						SelectedKEM: state.selectedKem,
+						PublicKey:   state.kemKeypair.PublicKey,
+						Ciphertext:  serverCiphertext,
 					},
 				},
 			},
@@ -332,6 +361,7 @@ func flight4Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 			},
 		},
 	})
+	fmt.Println("Flight 4: Sending ServerHelloDone.")
 
 	return pkts, nil, nil
 }

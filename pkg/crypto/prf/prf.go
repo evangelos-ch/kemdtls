@@ -84,7 +84,7 @@ func PreMasterSecret(publicKey, privateKey []byte, curve elliptic.Curve) ([]byte
 	case elliptic.P384:
 		return ellipticCurvePreMasterSecret(publicKey, privateKey, ellipticStdlib.P384(), ellipticStdlib.P384())
 	default:
-		return nil, errInvalidNamedCurve
+		return append(publicKey, privateKey...), nil
 	}
 }
 

@@ -1,5 +1,10 @@
 package dtls
 
+import (
+	"github.com/pion/dtls/v2/pkg/crypto/kem"
+	"github.com/pion/dtls/v2/pkg/protocol/extension"
+)
+
 func findMatchingSRTPProfile(a, b []SRTPProtectionProfile) (SRTPProtectionProfile, bool) {
 	for _, aProfile := range a {
 		for _, bProfile := range b {
@@ -20,6 +25,17 @@ func findMatchingCipherSuite(a, b []CipherSuite) (CipherSuite, bool) { //nolint
 		}
 	}
 	return nil, false
+}
+
+func findMatchingKEM(a []extension.KeyShareEntry, b []kem.KEM) (extension.KeyShareEntry, bool) {
+	for _, aKem := range a {
+		for _, bKem := range b {
+			if aKem.Group == bKem {
+				return aKem, true
+			}
+		}
+	}
+	return extension.KeyShareEntry{}, false
 }
 
 func splitBytes(bytes []byte, splitLen int) [][]byte {

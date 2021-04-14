@@ -2,8 +2,10 @@ package dtls
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
+	"github.com/pion/dtls/v2/pkg/crypto/kem"
 	"github.com/pion/dtls/v2/pkg/protocol"
 	"github.com/pion/dtls/v2/pkg/protocol/alert"
 	"github.com/pion/dtls/v2/pkg/protocol/extension"
@@ -11,7 +13,7 @@ import (
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 )
 
-func flight1Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) {
+func flight1Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, keyCache *keyShareCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) {
 	// HelloVerifyRequest can be skipped by the server,
 	// so allow ServerHello during flight1 also
 	seq, msgs, ok := cache.fullPullMap(state.handshakeRecvSequence,
@@ -26,7 +28,7 @@ func flight1Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 	if _, ok := msgs[handshake.TypeServerHello]; ok {
 		// Flight1 and flight2 were skipped.
 		// Parse as flight3.
-		return flight3Parse(ctx, c, state, cache, cfg)
+		return flight3Parse(ctx, c, state, cache, keyCache, cfg)
 	}
 
 	if h, ok := msgs[handshake.TypeHelloVerifyRequest].(*handshake.MessageHelloVerifyRequest); ok {
@@ -43,7 +45,7 @@ func flight1Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 	return 0, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, nil
 }
 
-func flight1Generate(c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) {
+func flight1Generate(c flightConn, state *State, cache *handshakeCache, keyShareCache *keyShareCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) {
 	var zeroEpoch uint16
 	state.localEpoch.Store(zeroEpoch)
 	state.remoteEpoch.Store(zeroEpoch)
@@ -54,12 +56,40 @@ func flight1Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 		return nil, nil, err
 	}
 
+	fmt.Println("Flight 1: Sending ClientHello")
+
+	var keyShareEntries []extension.KeyShareEntry
+
+	for k, enabled := range kem.KEMs() {
+		if enabled {
+			var (
+				keypair *kem.Keypair
+			)
+			keypair = keyShareCache.pull(k)
+			if keypair == nil {
+				keypairPtr, err := kem.GenerateKey(k)
+				keypair = &keypairPtr
+				if err != nil {
+					return nil, nil, err
+				}
+				keyShareCache.push(k, keypair)
+			}
+			keyShareEntries = append(keyShareEntries, extension.KeyShareEntry{
+				Group:   k,
+				Payload: keypair.PublicKey,
+			})
+		}
+	}
+
 	extensions := []extension.Extension{
 		&extension.SupportedSignatureAlgorithms{
 			SignatureHashAlgorithms: cfg.localSignatureSchemes,
 		},
 		&extension.RenegotiationInfo{
 			RenegotiatedConnection: 0,
+		},
+		&extension.KeyShare{
+			KeyShareEntries: keyShareEntries,
 		},
 	}
 	if cfg.localPSKCallback == nil {

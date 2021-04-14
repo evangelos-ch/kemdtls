@@ -6,7 +6,6 @@ import (
 
 func GetClient(algorithm string, privatekey []byte) (oqs.KeyEncapsulation, error) {
 	client := oqs.KeyEncapsulation{}
-	defer client.Clean()
 	if err := client.Init(algorithm, privatekey); err != nil {
 		return oqs.KeyEncapsulation{}, err
 	}
@@ -24,4 +23,20 @@ func GetKeypair(algorithm string) ([]byte, []byte, error) {
 	}
 	privateKey := client.ExportSecretKey()
 	return publicKey, privateKey, nil
+}
+
+func Encapsulate(algorithm string, privateKey, publicKey []byte) (ciphertext []byte, sharedSecret []byte, err error) {
+	client, err := GetClient(algorithm, privateKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	return client.EncapSecret(publicKey)
+}
+
+func Decapsulate(algorithm string, privateKey, ciphertext []byte) (sharedSecret []byte, err error) {
+	client, err := GetClient(algorithm, privateKey)
+	if err != nil {
+		return nil, err
+	}
+	return client.DecapSecret(ciphertext)
 }

@@ -10,6 +10,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/pion/dtls/v2/pkg/crypto/kem"
 	"github.com/pion/logging"
 )
 
@@ -26,6 +27,10 @@ type Config struct {
 	// CipherSuites is a list of supported cipher suites.
 	// If CipherSuites is nil, a default list is used
 	CipherSuites []CipherSuiteID
+
+	// KEMs is a list of supported KEMs.
+	// If KEMs is nil, a default list is used
+	KEMs []kem.KEM
 
 	// CustomCipherSuites is a list of CipherSuites that can be
 	// provided by the user. This allow users to user Ciphers that are reserved
@@ -137,6 +142,7 @@ func (c *Config) connectContextMaker() (context.Context, func()) {
 	return c.ConnectContextMaker()
 }
 
+// const defaultMTU = 1200 // bytes
 const defaultMTU = 1200 // bytes
 
 // PSKCallback is called once we have the remote's PSKIdentityHint.

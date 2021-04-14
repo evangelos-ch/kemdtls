@@ -5,7 +5,9 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"fmt"
 
+	"github.com/pion/dtls/v2/pkg/crypto/kem"
 	"github.com/pion/dtls/v2/pkg/crypto/prf"
 	"github.com/pion/dtls/v2/pkg/crypto/signaturehash"
 	"github.com/pion/dtls/v2/pkg/protocol"
@@ -14,7 +16,7 @@ import (
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 )
 
-func flight5Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) {
+func flight5Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, keyCache *keyShareCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) {
 	_, msgs, ok := cache.fullPullMap(state.handshakeRecvSequence,
 		handshakeCachePullRule{handshake.TypeFinished, cfg.initialEpoch + 1, false, false},
 	)
@@ -51,7 +53,7 @@ func flight5Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 	return flight5, nil, nil
 }
 
-func flight5Generate(c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) { //nolint:gocognit
+func flight5Generate(c flightConn, state *State, cache *handshakeCache, _ *keyShareCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) { //nolint:gocognit
 	var certBytes [][]byte
 	var privateKey crypto.PrivateKey
 	if len(cfg.localCertificates) > 0 {
@@ -79,11 +81,22 @@ func flight5Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 					},
 				},
 			})
+		fmt.Println("Flight 5: Sending Certificate.")
 	}
 
 	clientKeyExchange := &handshake.MessageClientKeyExchange{}
 	if cfg.localPSKCallback == nil {
-		clientKeyExchange.PublicKey = state.localKeypair.PublicKey
+		// clientKeyExchange.PublicKey = state.localKeypair.PublicKey
+		var (
+			err        error
+			ciphertext []byte
+		)
+		ciphertext, state.localSharedSecret, err = kem.Encapsulate(state.selectedKem, state.kemKeypair, state.remotePublicKey)
+		if err != nil {
+			return nil, &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, err
+		}
+		// TODO RENAME FROM PublicKey to Ciphertext
+		clientKeyExchange.PublicKey = ciphertext
 	} else {
 		clientKeyExchange.IdentityHint = cfg.localPSKIdentityHint
 	}
@@ -99,6 +112,7 @@ func flight5Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 				},
 			},
 		})
+	fmt.Println("Flight 5: Sending ClientKeyExchange.")
 
 	serverKeyExchangeData := cache.pullAndMerge(
 		handshakeCachePullRule{handshake.TypeServerKeyExchange, cfg.initialEpoch, false, false},
@@ -108,10 +122,12 @@ func flight5Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 
 	// handshakeMessageServerKeyExchange is optional for PSK
 	if len(serverKeyExchangeData) == 0 {
-		alertPtr, err := handleServerKeyExchange(c, state, cfg, &handshake.MessageServerKeyExchange{})
-		if err != nil {
-			return nil, alertPtr, err
-		}
+		// TODO enable
+		// alertPtr, err := handleServerKeyExchange(c, state, cfg, &handshake.MessageServerKeyExchange{})
+		// if err != nil {
+		// 	return nil, alertPtr, err
+		// }
+		return nil, &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, nil
 	} else {
 		rawHandshake := &handshake.Handshake{}
 		err := rawHandshake.Unmarshal(serverKeyExchangeData)
@@ -190,6 +206,7 @@ func flight5Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 			},
 		}
 		pkts = append(pkts, p)
+		fmt.Println("Flight 5: Sending CertificateVerify")
 
 		h, ok := p.record.Content.(*handshake.Handshake)
 		if !ok {
@@ -213,6 +230,7 @@ func flight5Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 				Content: &protocol.ChangeCipherSpec{},
 			},
 		})
+	fmt.Println("Flight 5: Sending ChangeCipherSpec")
 
 	if len(state.localVerifyData) == 0 {
 		plainText := cache.pullAndMerge(
@@ -251,6 +269,7 @@ func flight5Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 			shouldEncrypt:            true,
 			resetLocalSequenceNumber: true,
 		})
+	fmt.Println("Flight 5: Sending Finished")
 
 	return pkts, nil, nil
 }
@@ -264,6 +283,11 @@ func initalizeCipherSuite(state *State, cache *handshakeCache, cfg *handshakeCon
 	serverRandom := state.remoteRandom.MarshalFixed()
 
 	var err error
+
+	state.preMasterSecret, err = prf.PreMasterSecret(state.localSharedSecret, state.remoteSharedSecret, 0)
+	if err != nil {
+		return &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, err
+	}
 
 	if state.extendedMasterSecret {
 		var sessionHash []byte
@@ -285,21 +309,22 @@ func initalizeCipherSuite(state *State, cache *handshakeCache, cfg *handshakeCon
 
 	if state.cipherSuite.AuthenticationType() == CipherSuiteAuthenticationTypeCertificate {
 		// Verify that the pair of hash algorithm and signiture is listed.
-		var validSignatureScheme bool
-		for _, ss := range cfg.localSignatureSchemes {
-			if ss.Hash == h.HashAlgorithm && ss.Signature == h.SignatureAlgorithm {
-				validSignatureScheme = true
-				break
-			}
-		}
-		if !validSignatureScheme {
-			return &alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}, errNoAvailableSignatureSchemes
-		}
+		// TODO Enable or Remove
+		// var validSignatureScheme bool
+		// for _, ss := range cfg.localSignatureSchemes {
+		// 	if ss.Hash == h.HashAlgorithm && ss.Signature == h.SignatureAlgorithm {
+		// 		validSignatureScheme = true
+		// 		break
+		// 	}
+		// }
+		// if !validSignatureScheme {
+		// 	return &alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}, errNoAvailableSignatureSchemes
+		// }
 
-		expectedMsg := valueKeyMessage(clientRandom[:], serverRandom[:], h.PublicKey, h.NamedCurve)
-		if err = verifyKeySignature(expectedMsg, h.Signature, h.HashAlgorithm, state.PeerCertificates); err != nil {
-			return &alert.Alert{Level: alert.Fatal, Description: alert.BadCertificate}, err
-		}
+		// expectedMsg := valueKeyMessage(clientRandom[:], serverRandom[:], h.PublicKey, h.NamedCurve)
+		// if err = verifyKeySignature(expectedMsg, h.Signature, h.HashAlgorithm, state.PeerCertificates); err != nil {
+		// 	return &alert.Alert{Level: alert.Fatal, Description: alert.BadCertificate}, err
+		// }
 		var chains [][]*x509.Certificate
 		if !cfg.insecureSkipVerify {
 			if chains, err = verifyServerCert(state.PeerCertificates, cfg.rootCAs, cfg.serverName); err != nil {

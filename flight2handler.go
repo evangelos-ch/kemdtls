@@ -10,14 +10,14 @@ import (
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 )
 
-func flight2Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) {
+func flight2Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, keyCache *keyShareCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) {
 	seq, msgs, ok := cache.fullPullMap(state.handshakeRecvSequence,
 		handshakeCachePullRule{handshake.TypeClientHello, cfg.initialEpoch, true, false},
 	)
 	if !ok {
 		// Client may retransmit the first ClientHello when HelloVerifyRequest is dropped.
 		// Parse as flight 0 in this case.
-		return flight0Parse(ctx, c, state, cache, cfg)
+		return flight0Parse(ctx, c, state, cache, keyCache, cfg)
 	}
 	state.handshakeRecvSequence = seq
 
@@ -41,7 +41,7 @@ func flight2Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 	return flight4, nil, nil
 }
 
-func flight2Generate(c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) {
+func flight2Generate(c flightConn, state *State, cache *handshakeCache, _ *keyShareCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) {
 	state.handshakeSendSequence = 0
 	return []*packet{
 		{

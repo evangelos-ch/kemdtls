@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
+	"github.com/pion/dtls/v2/pkg/crypto/kem"
 	"github.com/pion/dtls/v2/pkg/crypto/prf"
 	"github.com/pion/dtls/v2/pkg/protocol/handshake"
 	"github.com/pion/transport/replaydetector"
@@ -25,11 +26,16 @@ type State struct {
 
 	isClient bool
 
+	localSharedSecret    []byte
+	remoteSharedSecret   []byte
 	preMasterSecret      []byte
 	extendedMasterSecret bool
 
 	namedCurve                 elliptic.Curve
 	localKeypair               *elliptic.Keypair
+	selectedKem                kem.KEM
+	kemKeypair                 kem.Keypair
+	remotePublicKey            []byte
 	cookie                     []byte
 	handshakeSendSequence      int
 	handshakeRecvSequence      int

@@ -138,7 +138,7 @@ func TestHandshaker(t *testing.T) {
 					retransmitInterval: nonZeroRetransmitInterval,
 				}
 
-				fsm := newHandshakeFSM(&ca.state, ca.handshakeCache, cfg, flight1)
+				fsm := newHandshakeFSM(&ca.state, ca.handshakeCache, ca.keyCache, cfg, flight1)
 				switch err := fsm.Run(ctx, ca, handshakePreparing); err {
 				case context.Canceled:
 				case context.DeadlineExceeded:
@@ -164,7 +164,7 @@ func TestHandshaker(t *testing.T) {
 					retransmitInterval: nonZeroRetransmitInterval,
 				}
 
-				fsm := newHandshakeFSM(&cb.state, cb.handshakeCache, cfg, flight0)
+				fsm := newHandshakeFSM(&cb.state, cb.handshakeCache, cb.keyCache, cfg, flight0)
 				switch err := fsm.Run(ctx, cb, handshakePreparing); err {
 				case context.Canceled:
 				case context.DeadlineExceeded:
@@ -187,11 +187,14 @@ type packetFilter func(*packet) bool
 
 func flightTestPipe(ctx context.Context, filter1 packetFilter, filter2 packetFilter) (*flightTestConn, *flightTestConn) {
 	ca := newHandshakeCache()
+	cka := newKeyShareCache()
 	cb := newHandshakeCache()
+	ckb := newKeyShareCache()
 	chA := make(chan chan struct{})
 	chB := make(chan chan struct{})
 	return &flightTestConn{
 			handshakeCache: ca,
+			keyCache:       cka,
 			otherEndCache:  cb,
 			recv:           chA,
 			otherEndRecv:   chB,
@@ -199,6 +202,7 @@ func flightTestPipe(ctx context.Context, filter1 packetFilter, filter2 packetFil
 			filter:         filter1,
 		}, &flightTestConn{
 			handshakeCache: cb,
+			keyCache:       ckb,
 			otherEndCache:  ca,
 			recv:           chB,
 			otherEndRecv:   chA,
@@ -210,6 +214,7 @@ func flightTestPipe(ctx context.Context, filter1 packetFilter, filter2 packetFil
 type flightTestConn struct {
 	state          State
 	handshakeCache *handshakeCache
+	keyCache       *keyShareCache
 	recv           chan chan struct{}
 	done           <-chan struct{}
 	epoch          uint16

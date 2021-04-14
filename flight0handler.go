@@ -3,15 +3,16 @@ package dtls
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 
-	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
+	"github.com/pion/dtls/v2/pkg/crypto/kem"
 	"github.com/pion/dtls/v2/pkg/protocol"
 	"github.com/pion/dtls/v2/pkg/protocol/alert"
 	"github.com/pion/dtls/v2/pkg/protocol/extension"
 	"github.com/pion/dtls/v2/pkg/protocol/handshake"
 )
 
-func flight0Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) {
+func flight0Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, keyCache *keyShareCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) {
 	seq, msgs, ok := cache.fullPullMap(0,
 		handshakeCachePullRule{handshake.TypeClientHello, cfg.initialEpoch, true, false},
 	)
@@ -22,6 +23,8 @@ func flight0Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 	state.handshakeRecvSequence = seq
 
 	var clientHello *handshake.MessageClientHello
+
+	fmt.Println("Flight 1: Received ClientHello")
 
 	// Validate type
 	if clientHello, ok = msgs[handshake.TypeClientHello].(*handshake.MessageClientHello); !ok {
@@ -64,6 +67,19 @@ func flight0Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 			}
 		case *extension.ServerName:
 			state.serverName = e.ServerName // remote server name
+		case *extension.KeyShare:
+			matchingKeyShare, ok := findMatchingKEM(e.KeyShareEntries, cfg.localKEMs)
+			if !ok {
+				return 0, &alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}, errCipherSuiteNoIntersection
+			}
+			state.selectedKem = matchingKeyShare.Group
+			state.remotePublicKey = matchingKeyShare.Payload
+			var err error
+			// TODO GET THIS FROM CERTIFICATE
+			state.kemKeypair, err = kem.GenerateKey(matchingKeyShare.Group)
+			if err != nil {
+				return 0, &alert.Alert{Level: alert.Fatal, Description: alert.IllegalParameter}, err
+			}
 		}
 	}
 
@@ -71,18 +87,19 @@ func flight0Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 		return 0, &alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}, errServerRequiredButNoClientEMS
 	}
 
-	if state.localKeypair == nil {
-		var err error
-		state.localKeypair, err = elliptic.GenerateKeypair(state.namedCurve)
-		if err != nil {
-			return 0, &alert.Alert{Level: alert.Fatal, Description: alert.IllegalParameter}, err
-		}
-	}
+	// TODO Remove as it's no longer needed for KEMDTLS
+	// if state.localKeypair == nil {
+	// 	var err error
+	// 	state.localKeypair, err = elliptic.GenerateKeypair(state.namedCurve)
+	// 	if err != nil {
+	// 		return 0, &alert.Alert{Level: alert.Fatal, Description: alert.IllegalParameter}, err
+	// 	}
+	// }
 
 	return flight2, nil, nil
 }
 
-func flight0Generate(c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) {
+func flight0Generate(c flightConn, state *State, cache *handshakeCache, _ *keyShareCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) {
 	// Initialize
 	state.cookie = make([]byte, cookieLength)
 	if _, err := rand.Read(state.cookie); err != nil {

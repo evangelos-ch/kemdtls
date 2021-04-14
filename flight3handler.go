@@ -2,8 +2,10 @@ package dtls
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
+	"github.com/pion/dtls/v2/pkg/crypto/kem"
 	"github.com/pion/dtls/v2/pkg/crypto/prf"
 	"github.com/pion/dtls/v2/pkg/protocol"
 	"github.com/pion/dtls/v2/pkg/protocol/alert"
@@ -12,7 +14,7 @@ import (
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 )
 
-func flight3Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) { //nolint:gocognit
+func flight3Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, keyCache *keyShareCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) { //nolint:gocognit
 	// Clients may receive multiple HelloVerifyRequest messages with different cookies.
 	// Clients SHOULD handle this by sending a new ClientHello with a cookie in response
 	// to the new HelloVerifyRequest. RFC 6347 Section 4.2.1
@@ -51,6 +53,9 @@ func flight3Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 		// Don't have enough messages. Keep reading
 		return 0, nil, nil
 	}
+
+	fmt.Println("Flight 4: Received ServerHello etc.")
+
 	state.handshakeRecvSequence = seq
 
 	if h, ok := msgs[handshake.TypeServerHello].(*handshake.MessageServerHello); ok {
@@ -100,7 +105,7 @@ func flight3Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 	}
 
 	if h, ok := msgs[handshake.TypeServerKeyExchange].(*handshake.MessageServerKeyExchange); ok {
-		alertPtr, err := handleServerKeyExchange(c, state, cfg, h)
+		alertPtr, err := handleServerKeyExchange(c, state, cfg, h, keyCache)
 		if err != nil {
 			return 0, alertPtr, err
 		}
@@ -113,7 +118,7 @@ func flight3Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 	return flight5, nil, nil
 }
 
-func handleServerKeyExchange(_ flightConn, state *State, cfg *handshakeConfig, h *handshake.MessageServerKeyExchange) (*alert.Alert, error) {
+func handleServerKeyExchange(_ flightConn, state *State, cfg *handshakeConfig, h *handshake.MessageServerKeyExchange, keyCache *keyShareCache) (*alert.Alert, error) {
 	var err error
 	if cfg.localPSKCallback != nil {
 		var psk []byte
@@ -123,19 +128,29 @@ func handleServerKeyExchange(_ flightConn, state *State, cfg *handshakeConfig, h
 		state.IdentityHint = h.IdentityHint
 		state.preMasterSecret = prf.PSKPreMasterSecret(psk)
 	} else {
-		if state.localKeypair, err = elliptic.GenerateKeypair(h.NamedCurve); err != nil {
+		// if state.localKeypair, err = elliptic.GenerateKeypair(h.NamedCurve); err != nil {
+		// 	return &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
+		// }
+		var err error
+		state.selectedKem = h.SelectedKEM
+		state.kemKeypair = *keyCache.pull(state.selectedKem)
+		state.remoteSharedSecret, err = kem.Decapsulate(state.selectedKem, state.kemKeypair, h.Ciphertext)
+		state.remotePublicKey = h.PublicKey
+		if err != nil {
 			return &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
 		}
 
-		if state.preMasterSecret, err = prf.PreMasterSecret(h.PublicKey, state.localKeypair.PrivateKey, state.localKeypair.Curve); err != nil {
-			return &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
-		}
+		// if state.preMasterSecret, err = prf.PreMasterSecret(h.PublicKey, state.localKeypair.PrivateKey, state.localKeypair.Curve); err != nil {
+		// 	return nil, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
+		// }
+
+		return nil, nil
 	}
 
 	return nil, nil
 }
 
-func flight3Generate(c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) {
+func flight3Generate(c flightConn, state *State, cache *handshakeCache, _ *keyShareCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) {
 	extensions := []extension.Extension{
 		&extension.SupportedSignatureAlgorithms{
 			SignatureHashAlgorithms: cfg.localSignatureSchemes,

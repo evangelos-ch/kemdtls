@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pion/dtls/v2/pkg/crypto/kem"
 	"github.com/pion/dtls/v2/pkg/crypto/signaturehash"
 	"github.com/pion/dtls/v2/pkg/protocol/alert"
 	"github.com/pion/dtls/v2/pkg/protocol/handshake"
@@ -83,6 +84,7 @@ type handshakeFSM struct {
 	retransmit    bool
 	state         *State
 	cache         *handshakeCache
+	keyCache      *keyShareCache
 	cfg           *handshakeConfig
 	closed        chan struct{}
 }
@@ -94,6 +96,7 @@ type handshakeConfig struct {
 	localSignatureSchemes       []signaturehash.Algorithm // Available signature schemes
 	extendedMasterSecret        ExtendedMasterSecretType  // Policy for the Extended Master Support extension
 	localSRTPProtectionProfiles []SRTPProtectionProfile   // Available SRTPProtectionProfiles, if empty no SRTP support
+	localKEMs                   []kem.KEM
 	serverName                  string
 	clientAuth                  ClientAuthType // If we are a client should we request a client certificate
 	localCertificates           []tls.Certificate
@@ -142,13 +145,14 @@ func srvCliStr(isClient bool) string {
 }
 
 func newHandshakeFSM(
-	s *State, cache *handshakeCache, cfg *handshakeConfig,
+	s *State, cache *handshakeCache, keyCache *keyShareCache, cfg *handshakeConfig,
 	initialFlight flightVal,
 ) *handshakeFSM {
 	return &handshakeFSM{
 		currentFlight: initialFlight,
 		state:         s,
 		cache:         cache,
+		keyCache:      keyCache,
 		cfg:           cfg,
 		closed:        make(chan struct{}),
 	}
@@ -200,7 +204,7 @@ func (s *handshakeFSM) prepare(ctx context.Context, c flightConn) (handshakeStat
 		err = errFlight
 		a = &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}
 	} else {
-		pkts, a, err = gen(c, s.state, s.cache, s.cfg)
+		pkts, a, err = gen(c, s.state, s.cache, s.keyCache, s.cfg)
 		s.retransmit = retransmit
 	}
 	if a != nil {
@@ -261,7 +265,7 @@ func (s *handshakeFSM) wait(ctx context.Context, c flightConn) (handshakeState, 
 	for {
 		select {
 		case done := <-c.recvHandshake():
-			nextFlight, alert, err := parse(ctx, c, s.state, s.cache, s.cfg)
+			nextFlight, alert, err := parse(ctx, c, s.state, s.cache, s.keyCache, s.cfg)
 			close(done)
 			if alert != nil {
 				if alertErr := c.notify(ctx, alert.Level, alert.Description); alertErr != nil {
@@ -308,7 +312,7 @@ func (s *handshakeFSM) finish(ctx context.Context, c flightConn) (handshakeState
 	retransmitTimer := time.NewTimer(s.cfg.retransmitInterval)
 	select {
 	case done := <-c.recvHandshake():
-		nextFlight, alert, err := parse(ctx, c, s.state, s.cache, s.cfg)
+		nextFlight, alert, err := parse(ctx, c, s.state, s.cache, s.keyCache, s.cfg)
 		close(done)
 		if alert != nil {
 			if alertErr := c.notify(ctx, alert.Level, alert.Description); alertErr != nil {

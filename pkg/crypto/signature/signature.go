@@ -11,6 +11,7 @@ const (
 	RSA       Algorithm = 1
 	ECDSA     Algorithm = 3
 	Ed25519   Algorithm = 7
+	SPHINCS   Algorithm = 8
 )
 
 // Algorithms returns all implemented Signature Algorithms
@@ -20,5 +21,6 @@ func Algorithms() map[Algorithm]struct{} {
 		RSA:       {},
 		ECDSA:     {},
 		Ed25519:   {},
+		SPHINCS:   {},
 	}
 }

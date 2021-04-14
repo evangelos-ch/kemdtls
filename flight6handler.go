@@ -10,7 +10,7 @@ import (
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 )
 
-func flight6Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) {
+func flight6Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, keyCache *keyShareCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) {
 	_, msgs, ok := cache.fullPullMap(state.handshakeRecvSequence-1,
 		handshakeCachePullRule{handshake.TypeFinished, cfg.initialEpoch + 1, true, false},
 	)
@@ -27,7 +27,7 @@ func flight6Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 	return flight6, nil, nil
 }
 
-func flight6Generate(c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) {
+func flight6Generate(c flightConn, state *State, cache *handshakeCache, _ *keyShareCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) {
 	var pkts []*packet
 
 	pkts = append(pkts,
@@ -46,7 +46,7 @@ func flight6Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 			handshakeCachePullRule{handshake.TypeServerHello, cfg.initialEpoch, false, false},
 			handshakeCachePullRule{handshake.TypeCertificate, cfg.initialEpoch, false, false},
 			handshakeCachePullRule{handshake.TypeServerKeyExchange, cfg.initialEpoch, false, false},
-			handshakeCachePullRule{handshake.TypeCertificateRequest, cfg.initialEpoch, false, false},
+			handshakeCachePullRule{handshake.TypeCertificateRequest, cfg.initialEpoch, false, true},
 			handshakeCachePullRule{handshake.TypeServerHelloDone, cfg.initialEpoch, false, false},
 			handshakeCachePullRule{handshake.TypeCertificate, cfg.initialEpoch, true, false},
 			handshakeCachePullRule{handshake.TypeClientKeyExchange, cfg.initialEpoch, true, false},

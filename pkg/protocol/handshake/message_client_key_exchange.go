@@ -27,10 +27,12 @@ func (m *MessageClientKeyExchange) Marshal() ([]byte, error) {
 	case (m.IdentityHint != nil && m.PublicKey != nil) || (m.IdentityHint == nil && m.PublicKey == nil):
 		return nil, errInvalidClientKeyExchange
 	case m.PublicKey != nil:
-		return append([]byte{byte(len(m.PublicKey))}, m.PublicKey...), nil
+		out := append([]byte{0x01, 0x00, 0x00}, m.PublicKey...)
+		binary.BigEndian.PutUint16(out[1:], uint16(len(out)-3))
+		return out, nil
 	default:
-		out := append([]byte{0x00, 0x00}, m.IdentityHint...)
-		binary.BigEndian.PutUint16(out, uint16(len(out)-2))
+		out := append([]byte{0x00, 0x00, 0x00}, m.IdentityHint...)
+		binary.BigEndian.PutUint16(out[1:], uint16(len(out)-3))
 		return out, nil
 	}
 }
@@ -41,16 +43,19 @@ func (m *MessageClientKeyExchange) Unmarshal(data []byte) error {
 		return errBufferTooSmall
 	}
 
-	// If parsed as PSK return early and only populate PSK Identity Hint
-	if pskLength := binary.BigEndian.Uint16(data); len(data) == int(pskLength+2) {
-		m.IdentityHint = append([]byte{}, data[2:]...)
+	if int(data[0]) == 0 {
+		// If parsed as PSK return early and only populate PSK Identity Hint
+		if pskLength := binary.BigEndian.Uint16(data[1:3]); len(data) == int(pskLength+3) {
+			m.IdentityHint = append([]byte{}, data[3:]...)
+			return nil
+		}
+	} else {
+		if publicKeyLength := binary.BigEndian.Uint16(data[1:3]); len(data) != int(publicKeyLength+3) {
+			return errBufferTooSmall
+		}
+
+		m.PublicKey = append([]byte{}, data[3:]...)
 		return nil
 	}
-
-	if publicKeyLength := int(data[0]); len(data) != publicKeyLength+1 {
-		return errBufferTooSmall
-	}
-
-	m.PublicKey = append([]byte{}, data[1:]...)
 	return nil
 }

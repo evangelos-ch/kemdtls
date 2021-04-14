@@ -17,6 +17,7 @@ var (
 	errInvalidSignatureAlgorithm = &protocol.FatalError{Err: errors.New("invalid signature algorithm")}                                              //nolint:goerr113
 	errCookieTooLong             = &protocol.FatalError{Err: errors.New("cookie must not be longer then 255 bytes")}                                 //nolint:goerr113
 	errInvalidEllipticCurveType  = &protocol.FatalError{Err: errors.New("invalid or unknown elliptic curve type")}                                   //nolint:goerr113
+	errInvalidEllipticKEM        = &protocol.FatalError{Err: errors.New("invalid or unknown KEM")}                                                   //nolint:goerr113
 	errInvalidNamedCurve         = &protocol.FatalError{Err: errors.New("invalid named curve")}                                                      //nolint:goerr113
 	errCipherSuiteUnset          = &protocol.FatalError{Err: errors.New("server hello can not be created without a cipher suite")}                   //nolint:goerr113
 	errCompressionMethodUnset    = &protocol.FatalError{Err: errors.New("server hello can not be created without a compression method")}             //nolint:goerr113
