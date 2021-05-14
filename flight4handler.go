@@ -103,7 +103,9 @@ func flight4Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 			state.IdentityHint = clientKeyExchange.IdentityHint
 			preMasterSecret = prf.PSKPreMasterSecret(psk)
 		} else {
-			state.remoteSharedSecret, err = kem.Decapsulate(state.selectedKem, state.kemKeypair, clientKeyExchange.PublicKey) // This "PublicKey" is the ciphertext
+			selectedKem := state.cipherSuite.KEM()
+			// Use Long-term KEM
+			state.remoteSharedSecret, err = kem.Decapsulate(selectedKem, state.kemKeypair, clientKeyExchange.PublicKey) // This "PublicKey" is the ciphertext
 			if err != nil {
 				return 0, &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, err
 			}
@@ -230,8 +232,8 @@ func flight4Generate(c flightConn, state *State, cache *handshakeCache, _ *keySh
 		},
 	})
 	fmt.Println("Flight 4: Sending ServerHello.")
-
-	serverCiphertext, sharedSecret, err := kem.Encapsulate(state.selectedKem, state.kemKeypair, state.remotePublicKey)
+	// Use ephemeral KEM
+	serverCiphertext, sharedSecret, err := kem.Encapsulate(state.selectedKem, state.remotePublicKey)
 	if err != nil {
 		return nil, &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, err
 	}

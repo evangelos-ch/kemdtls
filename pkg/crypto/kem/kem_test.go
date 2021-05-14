@@ -18,11 +18,11 @@ func TestKemEncapsDecaps(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	serverCiphertext, sharedSecretServer, err := Encapsulate(algorithm, serverKeypair, clientKeypair.PublicKey)
+	serverCiphertext, sharedSecretServer, err := Encapsulate(algorithm, clientKeypair.PublicKey)
 	if err != nil {
 		t.Error(err)
 	}
-	clientCiphertext, sharedSecretClient, err := Encapsulate(algorithm, clientKeypair, serverKeypair.PublicKey)
+	clientCiphertext, sharedSecretClient, err := Encapsulate(algorithm, serverKeypair.PublicKey)
 	if err != nil {
 		t.Error(err)
 	}
@@ -45,7 +45,6 @@ func TestKemEncapsDecaps(t *testing.T) {
 
 	isValidServer := bytes.Equal(sharedSecretServer2, sharedSecretServer)
 	isValidClient := bytes.Equal(sharedSecretClient2, sharedSecretClient)
-	t.Error("error")
 	if !isValidServer {
 		t.Error("Server secret invalid.")
 	}

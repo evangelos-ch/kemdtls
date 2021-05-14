@@ -33,6 +33,7 @@ func main() {
 		Certificates:         []tls.Certificate{certificate},
 		ExtendedMasterSecret: dtls.RequireExtendedMasterSecret,
 		// Create timeout context for accepted connection.
+		CipherSuites: []dtls.CipherSuiteID{dtls.TLS_SABER_WITH_AES_128_GCM_SHA256},
 		ConnectContextMaker: func() (context.Context, func()) {
 			return context.WithTimeout(ctx, 240*time.Second)
 		},

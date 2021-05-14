@@ -6,6 +6,7 @@ import (
 
 	"github.com/pion/dtls/v2/internal/ciphersuite"
 	"github.com/pion/dtls/v2/pkg/crypto/clientcertificate"
+	"github.com/pion/dtls/v2/pkg/crypto/kem"
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 )
 
@@ -27,7 +28,7 @@ const (
 	TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA   CipherSuiteID = ciphersuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA   //nolint:golint,stylecheck
 
 	// OQS
-	TLS_MCELIECE_SPHINCS_WITH_AES_256_CBC_SHA CipherSuiteID = ciphersuite.TLS_MCELIECE_SPHINCS_WITH_AES_256_CBC_SHA //nolint:golint,stylecheck
+	TLS_SABER_WITH_AES_128_GCM_SHA256 CipherSuiteID = ciphersuite.TLS_SABER_WITH_AES_128_GCM_SHA256 //nolint:golint,stylecheck
 
 	TLS_PSK_WITH_AES_128_CCM        CipherSuiteID = ciphersuite.TLS_PSK_WITH_AES_128_CCM        //nolint:golint,stylecheck
 	TLS_PSK_WITH_AES_128_CCM_8      CipherSuiteID = ciphersuite.TLS_PSK_WITH_AES_128_CCM_8      //nolint:golint,stylecheck
@@ -60,6 +61,9 @@ type CipherSuite interface {
 
 	// What Hash function is used during verification
 	HashFunc() func() hash.Hash
+
+	// What KEM is used
+	KEM() kem.KEM
 
 	// AuthenticationType controls what authentication method is using during the handshake
 	AuthenticationType() CipherSuiteAuthenticationType
@@ -102,8 +106,8 @@ func cipherSuiteForID(id CipherSuiteID, customCiphers func() []CipherSuite) Ciph
 		return &ciphersuite.TLSEcdheEcdsaWithAes256CbcSha{}
 	case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
 		return &ciphersuite.TLSEcdheRsaWithAes256CbcSha{}
-	case TLS_MCELIECE_SPHINCS_WITH_AES_256_CBC_SHA:
-		return &ciphersuite.TLSMcElieceSphincsWithAes256CbcSha{}
+	case TLS_SABER_WITH_AES_128_GCM_SHA256:
+		return &ciphersuite.TLSSABERWithAes128GcmSha256{}
 	case TLS_PSK_WITH_AES_128_CCM:
 		return ciphersuite.NewTLSPskWithAes128Ccm()
 	case TLS_PSK_WITH_AES_128_CCM_8:

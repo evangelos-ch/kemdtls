@@ -25,8 +25,8 @@ func GetKeypair(algorithm string) ([]byte, []byte, error) {
 	return publicKey, privateKey, nil
 }
 
-func Encapsulate(algorithm string, privateKey, publicKey []byte) (ciphertext []byte, sharedSecret []byte, err error) {
-	client, err := GetClient(algorithm, privateKey)
+func Encapsulate(algorithm string, publicKey []byte) (ciphertext []byte, sharedSecret []byte, err error) {
+	client, err := GetClient(algorithm, nil)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/pion/dtls/v2/pkg/crypto/ciphersuite"
 	"github.com/pion/dtls/v2/pkg/crypto/clientcertificate"
+	"github.com/pion/dtls/v2/pkg/crypto/kem"
 	"github.com/pion/dtls/v2/pkg/crypto/prf"
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 )
@@ -97,4 +98,8 @@ func (c *TLSPskWithAes128CbcSha256) Decrypt(raw []byte) ([]byte, error) {
 	}
 
 	return cbc.(*ciphersuite.CBC).Decrypt(raw)
+}
+
+func (c *TLSPskWithAes128CbcSha256) KEM() kem.KEM {
+	return 0
 }

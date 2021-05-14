@@ -28,19 +28,21 @@ func main() {
 	config := &dtls.Config{
 		Certificates:         []tls.Certificate{certificate},
 		InsecureSkipVerify:   true,
+		CipherSuites:         []dtls.CipherSuiteID{dtls.TLS_SABER_WITH_AES_128_GCM_SHA256},
 		ExtendedMasterSecret: dtls.RequireExtendedMasterSecret,
 	}
 
 	// Connect to a DTLS server
 	ctx, cancel := context.WithTimeout(context.Background(), 240*time.Second)
 	defer cancel()
+	start := time.Now().UnixNano()
 	dtlsConn, err := dtls.DialWithContext(ctx, "udp", addr, config)
 	util.Check(err)
 	defer func() {
 		util.Check(dtlsConn.Close())
 	}()
-
-	fmt.Println("Connected; type 'exit' to shutdown gracefully")
+	end := time.Now().UnixNano()
+	fmt.Printf("Connected; Connection took %d ms; type 'exit' to shutdown gracefully\n", end-start/int64(time.Millisecond))
 
 	// Simulate a chat session
 	util.Chat(dtlsConn)

@@ -134,6 +134,7 @@ func handleServerKeyExchange(_ flightConn, state *State, cfg *handshakeConfig, h
 		var err error
 		state.selectedKem = h.SelectedKEM
 		state.kemKeypair = *keyCache.pull(state.selectedKem)
+		// use ephemeral KEM
 		state.remoteSharedSecret, err = kem.Decapsulate(state.selectedKem, state.kemKeypair, h.Ciphertext)
 		state.remotePublicKey = h.PublicKey
 		if err != nil {

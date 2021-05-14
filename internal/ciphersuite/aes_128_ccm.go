@@ -8,6 +8,7 @@ import (
 
 	"github.com/pion/dtls/v2/pkg/crypto/ciphersuite"
 	"github.com/pion/dtls/v2/pkg/crypto/clientcertificate"
+	"github.com/pion/dtls/v2/pkg/crypto/kem"
 	"github.com/pion/dtls/v2/pkg/crypto/prf"
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 )
@@ -105,4 +106,8 @@ func (c *Aes128Ccm) Decrypt(raw []byte) ([]byte, error) {
 	}
 
 	return ccm.(*ciphersuite.CCM).Decrypt(raw)
+}
+
+func (c *Aes128Ccm) KEM() kem.KEM {
+	return 0
 }

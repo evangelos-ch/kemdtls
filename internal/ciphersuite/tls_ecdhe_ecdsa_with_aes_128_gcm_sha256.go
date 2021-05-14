@@ -8,6 +8,7 @@ import (
 
 	"github.com/pion/dtls/v2/pkg/crypto/ciphersuite"
 	"github.com/pion/dtls/v2/pkg/crypto/clientcertificate"
+	"github.com/pion/dtls/v2/pkg/crypto/kem"
 	"github.com/pion/dtls/v2/pkg/crypto/prf"
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 )
@@ -89,4 +90,8 @@ func (c *TLSEcdheEcdsaWithAes128GcmSha256) Decrypt(raw []byte) ([]byte, error) {
 	}
 
 	return gcm.(*ciphersuite.GCM).Decrypt(raw)
+}
+
+func (c *TLSEcdheEcdsaWithAes128GcmSha256) KEM() kem.KEM {
+	return 0
 }

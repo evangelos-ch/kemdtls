@@ -55,6 +55,7 @@ func KEMs() map[KEM]bool {
 
 func DefaultKEMs() []KEM {
 	return []KEM{
+		// CLASSIC_MCELIECE_348864,
 		SABER_FIRESABER,
 	}
 }
@@ -86,9 +87,9 @@ func GenerateKey(k KEM) (Keypair, error) {
 	}
 }
 
-func Encapsulate(k KEM, localKeypair Keypair, publicKey []byte) ([]byte, []byte, error) {
+func Encapsulate(k KEM, publicKey []byte) ([]byte, []byte, error) {
 	if IsLibOQS(k) {
-		ciphertext, sharedSecret, err := oqs.Encapsulate(k.String(), localKeypair.PrivateKey, publicKey)
+		ciphertext, sharedSecret, err := oqs.Encapsulate(k.String(), publicKey)
 		if err != nil {
 			return nil, nil, err
 		}

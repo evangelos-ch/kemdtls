@@ -91,7 +91,9 @@ func flight5Generate(c flightConn, state *State, cache *handshakeCache, _ *keySh
 			err        error
 			ciphertext []byte
 		)
-		ciphertext, state.localSharedSecret, err = kem.Encapsulate(state.selectedKem, state.kemKeypair, state.remotePublicKey)
+		// Use Long-Term KEM
+		selectedKem := state.cipherSuite.KEM()
+		ciphertext, state.localSharedSecret, err = kem.Encapsulate(selectedKem, state.remotePublicKey)
 		if err != nil {
 			return nil, &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, err
 		}
