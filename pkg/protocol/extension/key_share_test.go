@@ -8,7 +8,6 @@ import (
 )
 
 func TestExtensionKeyShare(t *testing.T) {
-	// TODO ADJUST FOR REAL KEY
 	rawExtensionKeyShare := []byte{
 		0x00, 0x33,
 		0x00, 0x0f,

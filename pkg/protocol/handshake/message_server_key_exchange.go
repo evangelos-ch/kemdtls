@@ -13,14 +13,9 @@ import (
 type MessageServerKeyExchange struct {
 	IdentityHint []byte
 
-	// EllipticCurveType  elliptic.CurveType
-	// NamedCurve         elliptic.Curve
 	SelectedKEM kem.KEM
 	PublicKey   []byte
 	Ciphertext  []byte
-	// HashAlgorithm      hash.Algorithm
-	// SignatureAlgorithm signature.Algorithm
-	// Signature          []byte
 }
 
 // Type returns the Handshake Type

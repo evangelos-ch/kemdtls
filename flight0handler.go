@@ -48,6 +48,13 @@ func flight0Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 		return 0, &alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}, errCipherSuiteNoIntersection
 	}
 
+	// TODO GET THIS FROM CERT?
+	var err error
+	state.kemKeypair, err = kem.GenerateKey(state.cipherSuite.KEM())
+	if err != nil {
+		return 0, &alert.Alert{Level: alert.Fatal, Description: alert.IllegalParameter}, err
+	}
+
 	for _, val := range clientHello.Extensions {
 		switch e := val.(type) {
 		case *extension.SupportedEllipticCurves:
@@ -74,12 +81,6 @@ func flight0Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 			}
 			state.selectedKem = matchingKeyShare.Group
 			state.remotePublicKey = matchingKeyShare.Payload
-			var err error
-			// TODO GET THIS FROM CERTIFICATE
-			state.kemKeypair, err = kem.GenerateKey(matchingKeyShare.Group)
-			if err != nil {
-				return 0, &alert.Alert{Level: alert.Fatal, Description: alert.IllegalParameter}, err
-			}
 		}
 	}
 

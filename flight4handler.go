@@ -284,15 +284,9 @@ func flight4Generate(c flightConn, state *State, cache *handshakeCache, _ *keySh
 				},
 				Content: &handshake.Handshake{
 					Message: &handshake.MessageServerKeyExchange{
-						// EllipticCurveType:  elliptic.CurveTypeNamedCurve,
-						// NamedCurve:         state.namedCurve,
 						SelectedKEM: state.selectedKem,
 						PublicKey:   state.kemKeypair.PublicKey,
 						Ciphertext:  serverCiphertext,
-						// PublicKey:          state.localKeypair.PublicKey,
-						// HashAlgorithm:      signatureHashAlgo.Hash,
-						// SignatureAlgorithm: signatureHashAlgo.Signature,
-						// Signature:          state.localKeySignature,
 					},
 				},
 			},

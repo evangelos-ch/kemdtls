@@ -33,7 +33,7 @@ func (k KEM) String() string {
 func (k KEM) PayloadSize() int {
 	switch k {
 	case CLASSIC_MCELIECE_348864:
-		return 261120
+		return 4
 	case CLASSIC_MCELIECE_348864f:
 		// TODO FIX THIS TO BE CORRECT
 		return 5

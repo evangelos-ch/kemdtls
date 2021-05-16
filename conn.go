@@ -408,6 +408,12 @@ func (c *Conn) writePackets(ctx context.Context, pkts []*packet) error {
 	}
 	compactedRawPackets := c.compactRawPackets(rawPackets)
 
+	sum := 0
+	for _, packet := range compactedRawPackets {
+		sum += len(packet)
+	}
+	fmt.Printf("Sending %d bytes of data.\n", sum)
+
 	for _, compactedRawPackets := range compactedRawPackets {
 		if _, err := c.nextConn.WriteContext(ctx, compactedRawPackets); err != nil {
 			return netError(err)
